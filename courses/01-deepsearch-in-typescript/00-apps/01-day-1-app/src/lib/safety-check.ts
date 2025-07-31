@@ -9,7 +9,7 @@ export const checkIsSafe = async (
 ) => {
   const messageHistory: string = ctx.getMessages();
 
-  const { object } = await generateObject({
+  const result = await generateObject({
     model: guardrailModel,
     schema: z.object({
       classification: z.enum(["allow", "refuse"]),
@@ -139,5 +139,8 @@ Remember: When in doubt, err on the side of caution. Your goal is protecting use
       : undefined,
   });
 
-  return object;
+  // Report usage
+  ctx.reportUsage("safety-check", result.usage);
+
+  return result.object;
 };

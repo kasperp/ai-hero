@@ -4,6 +4,7 @@ import {
   MessageSquareIcon,
   LightbulbIcon,
   GlobeIcon,
+  HashIcon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { MessageAnnotation } from "~/lib/get-next-action";
@@ -48,12 +49,18 @@ export const ReasoningSteps = ({
                     ) : (
                       <MessageSquareIcon className="size-4" />
                     )
-                  ) : (
+                  ) : annotation.type === "SOURCES" ? (
                     <GlobeIcon className="size-4" />
-                  )}
+                  ) : annotation.type === "TOKEN_USAGE" ? (
+                    <HashIcon className="size-4" />
+                  ) : null}
                   {annotation.type === "NEW_ACTION"
                     ? annotation.action.title
-                    : `${annotation.sources.length} sources found`}
+                    : annotation.type === "SOURCES"
+                      ? `${annotation.sources.length} sources found`
+                      : annotation.type === "TOKEN_USAGE"
+                        ? `Tokens: ${annotation.totalTokens.toLocaleString()}`
+                        : ""}
                 </div>
               </button>
               <div className={`${isOpen ? "mt-1" : "hidden"}`}>
@@ -81,7 +88,7 @@ export const ReasoningSteps = ({
                           </div>
                         )}
                       </>
-                    ) : (
+                    ) : annotation.type === "SOURCES" ? (
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {annotation.sources.map((source, sourceIndex) => (
                           <a
@@ -128,7 +135,17 @@ export const ReasoningSteps = ({
                           </a>
                         ))}
                       </div>
-                    )}
+                    ) : annotation.type === "TOKEN_USAGE" ? (
+                      <div className="text-sm text-gray-400">
+                        <div className="mb-1 font-medium text-gray-300">
+                          Token Usage:
+                        </div>
+                        <div className="text-gray-300">
+                          Total tokens used:{" "}
+                          {annotation.totalTokens.toLocaleString()}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>

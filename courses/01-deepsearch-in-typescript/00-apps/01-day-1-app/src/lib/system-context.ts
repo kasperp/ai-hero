@@ -14,6 +14,13 @@ type SearchHistoryEntry = {
   results: SearchResult[];
 };
 
+type UsageEntry = {
+  source: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
 export class SystemContext {
   /**
    * The current step in the loop
@@ -39,6 +46,11 @@ export class SystemContext {
    * The most recent feedback from getNextAction
    */
   private lastFeedback?: string;
+
+  /**
+   * Token usage tracking
+   */
+  private usage: UsageEntry[] = [];
 
   constructor(messages: Message[], locationInfo?: LocationInfo) {
     this.messages = messages;
@@ -83,6 +95,50 @@ export class SystemContext {
 
   getLastFeedback(): string {
     return this.lastFeedback || "";
+  }
+
+  /**
+   * Report token usage from an LLM call
+   */
+  reportUsage(
+    source: string,
+    usage: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    },
+  ) {
+    this.usage.push({
+      source,
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      totalTokens: usage.totalTokens,
+    });
+  }
+
+  /**
+   * Get total token usage across all calls
+   */
+  getTotalUsage(): {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  } {
+    return this.usage.reduce(
+      (total, entry) => ({
+        promptTokens: total.promptTokens + entry.promptTokens,
+        completionTokens: total.completionTokens + entry.completionTokens,
+        totalTokens: total.totalTokens + entry.totalTokens,
+      }),
+      { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    );
+  }
+
+  /**
+   * Get detailed usage breakdown
+   */
+  getUsageBreakdown(): UsageEntry[] {
+    return [...this.usage];
   }
 
   getSearchHistory(): string {

@@ -32,7 +32,7 @@ ${format}
 ${isFinal ? "Note: You may not have complete information to answer the question fully, but provide your best effort based on the available data." : ""}
 `;
 
-  return streamText({
+  const result = streamText({
     model,
     system: systemPrompt,
     prompt: `
@@ -64,6 +64,13 @@ Please provide a comprehensive answer to the user's question based on the availa
       : undefined,
     onFinish,
   });
+
+  // Report usage when the stream completes
+  void result.usage.then((usage) => {
+    context.reportUsage("answer-question", usage);
+  });
+
+  return result;
 };
 
 const tone = `You are a knowledgeable friend who happens to be really good at explaining things. Think of yourself as that person everyone turns to when they need something explained clearly – not because you're showing off your expertise, but because you genuinely care about helping people understand.

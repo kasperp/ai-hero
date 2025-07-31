@@ -8,7 +8,7 @@ export const checkFactuality = async (opts: {
   groundTruth: string;
   submission: string;
 }) => {
-  const { object } = await generateObject({
+  const result = await generateObject({
     model: factualityModel,
     /**
      * Prompt taken from autoevals:
@@ -43,6 +43,9 @@ export const checkFactuality = async (opts: {
     }),
   });
 
+  // Note: This function doesn't have access to SystemContext, so we can't report usage here
+  // The usage will be tracked at a higher level where this function is called
+
   /**
    * LLM's are well documented at being poor at generating numerical scores,
    * so we use a categorical scoring system instead.
@@ -56,9 +59,9 @@ export const checkFactuality = async (opts: {
   };
 
   return {
-    score: scores[object.answer],
+    score: scores[result.object.answer],
     metadata: {
-      rationale: object.rationale,
+      rationale: result.object.rationale,
     },
   };
 };

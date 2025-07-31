@@ -93,6 +93,9 @@ ${context.getSearchHistory()}
       : undefined,
   });
 
+  // Report usage
+  context.reportUsage("get-next-action", result.usage);
+
   return result.object;
 };
 
@@ -114,4 +117,8 @@ export type MessageAnnotation =
         snippet: string;
         favicon?: string;
       }>;
+    }
+  | {
+      type: "TOKEN_USAGE";
+      totalTokens: number;
     };

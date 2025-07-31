@@ -66,6 +66,9 @@ Please create a detailed synthesis of the above content in relation to the resea
         : undefined,
     });
 
+    // Note: This function doesn't have access to SystemContext, so we can't report usage here
+    // The usage will be tracked at a higher level where this function is called
+
     return result.text;
   },
 );

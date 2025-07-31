@@ -8,6 +8,10 @@ import { getNextAction, type MessageAnnotation } from "./get-next-action";
 import { queryRewriter } from "./query-rewriter";
 import { answerQuestion } from "./answer-question";
 import { checkIsSafe } from "./safety-check";
+import {
+  checkIfQuestionNeedsClarification,
+  generateClarificationRequest,
+} from "./check-clarification";
 import { guardrailModel } from "~/app/api/chat/model";
 import type { LocationInfo } from "./location-utils";
 
@@ -69,6 +73,22 @@ export const runAgentLoop = async (
         : undefined,
       onFinish: opts?.onFinish,
     });
+  }
+
+  // Clarification check - check if the question needs clarification before processing
+  const clarificationResult = await checkIfQuestionNeedsClarification(
+    ctx,
+    opts?.langfuseTraceId,
+  );
+
+  if (clarificationResult.needsClarification) {
+    // Return a clarification request instead of processing
+    return generateClarificationRequest(
+      ctx,
+      clarificationResult.reason ||
+        "The question needs more specific details to provide a helpful answer.",
+      opts?.langfuseTraceId,
+    );
   }
 
   while (!ctx.shouldStop()) {
@@ -151,12 +171,30 @@ export const runAgentLoop = async (
     } else if (nextAction.type === "answer") {
       const lastMessage = messages[messages.length - 1];
       const userQuestion = lastMessage?.content || "";
-      return answerQuestion(
+      const result = answerQuestion(
         ctx,
         userQuestion,
         { isFinal: false, onFinish: opts?.onFinish },
         opts,
       );
+
+      // Add token usage annotation when the stream completes
+      result.then((streamResult) => {
+        void streamResult.usage.then((usage) => {
+          ctx.reportUsage("answer-question", usage);
+
+          // Send token usage annotation to the frontend
+          if (opts?.writeMessageAnnotation) {
+            const totalUsage = ctx.getTotalUsage();
+            opts.writeMessageAnnotation({
+              type: "TOKEN_USAGE",
+              totalTokens: totalUsage.totalTokens,
+            });
+          }
+        });
+      });
+
+      return result;
     }
 
     // We increment the step counter
@@ -167,10 +205,28 @@ export const runAgentLoop = async (
   // we ask the LLM to give its best attempt at an answer
   const lastMessage = messages[messages.length - 1];
   const userQuestion = lastMessage?.content || "";
-  return answerQuestion(
+  const finalResult = answerQuestion(
     ctx,
     userQuestion,
     { isFinal: true, onFinish: opts?.onFinish },
     opts,
   );
+
+  // Add token usage annotation when the stream completes
+  finalResult.then((streamResult) => {
+    void streamResult.usage.then((usage) => {
+      ctx.reportUsage("final-answer", usage);
+
+      // Send token usage annotation to the frontend
+      if (opts?.writeMessageAnnotation) {
+        const totalUsage = ctx.getTotalUsage();
+        opts.writeMessageAnnotation({
+          type: "TOKEN_USAGE",
+          totalTokens: totalUsage.totalTokens,
+        });
+      }
+    });
+  });
+
+  return finalResult;
 };

@@ -67,23 +67,11 @@ ${context.getLocationContext()}
 ${context.getMessages()}
 </message-history>
 
-Based on the context and the user's question, create a research plan and generate search queries.
+Based on the user's question, create a strategic research plan and generate 3-5 sequential search queries that will help answer the question comprehensively.
 
 <search-history>
 ${context.getSearchHistory()}
 </search-history>
-
-${
-  context.getLastFeedback()
-    ? `<feedback>
-${context.getLastFeedback()}
-
-Use this feedback to guide your search queries and focus on the specific gaps identified.
-</feedback>`
-    : ""
-}
-
-Create a detailed plan and generate 3-5 search queries that will help answer the question.
     `,
     experimental_telemetry: opts?.langfuseTraceId
       ? {
@@ -95,6 +83,9 @@ Create a detailed plan and generate 3-5 search queries that will help answer the
         }
       : undefined,
   });
+
+  // Report usage
+  context.reportUsage("query-rewriter", result.usage);
 
   return result.object;
 };

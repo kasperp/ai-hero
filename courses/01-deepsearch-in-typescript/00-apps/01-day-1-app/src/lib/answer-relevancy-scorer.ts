@@ -5,7 +5,7 @@ import { factualityModel } from "../app/api/chat/model";
 
 // Step 1: Break output into statements
 async function generateStatements(output: string): Promise<string[]> {
-  const { object } = await generateObject({
+  const result = await generateObject({
     model: factualityModel,
     prompt: `Given the text, break it down into meaningful statements while preserving context and relationships.
 Don't split too aggressively.
@@ -40,7 +40,11 @@ JSON:
       statements: z.array(z.string()),
     }),
   });
-  return object.statements;
+
+  // Note: This function doesn't have access to SystemContext, so we can't report usage here
+  // The usage will be tracked at a higher level where this function is called
+
+  return result.object.statements;
 }
 
 // Step 2: Score each statement for relevancy
@@ -50,7 +54,7 @@ async function scoreRelevancy(
 ): Promise<{
   verdicts: { verdict: "yes" | "no" | "unsure"; reason: string }[];
 }> {
-  const { object } = await generateObject({
+  const result = await generateObject({
     model: factualityModel,
     system: `You are a balanced and nuanced answer relevancy evaluator. Your job is to determine if LLM outputs are relevant to the input, including handling partially relevant or uncertain cases.
 
@@ -195,7 +199,11 @@ The number of verdicts MUST MATCH the number of statements exactly.
       ),
     }),
   });
-  return object;
+
+  // Note: This function doesn't have access to SystemContext, so we can't report usage here
+  // The usage will be tracked at a higher level where this function is called
+
+  return result.object;
 }
 
 export const AnswerRelevancy = createScorer<string, string, string>({
