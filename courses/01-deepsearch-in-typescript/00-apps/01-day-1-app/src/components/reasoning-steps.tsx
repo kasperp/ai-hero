@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { SearchIcon, MessageSquareIcon, LightbulbIcon } from "lucide-react";
+import {
+  SearchIcon,
+  MessageSquareIcon,
+  LightbulbIcon,
+  GlobeIcon,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { MessageAnnotation } from "~/lib/get-next-action";
 
@@ -37,34 +42,91 @@ export const ReasoningSteps = ({
                   {index + 1}
                 </span>
                 <div className="flex items-center gap-2">
-                  {annotation.action.type === "continue" ? (
-                    <SearchIcon className="size-4" />
+                  {annotation.type === "NEW_ACTION" ? (
+                    annotation.action.type === "continue" ? (
+                      <SearchIcon className="size-4" />
+                    ) : (
+                      <MessageSquareIcon className="size-4" />
+                    )
                   ) : (
-                    <MessageSquareIcon className="size-4" />
+                    <GlobeIcon className="size-4" />
                   )}
-                  {annotation.action.title}
+                  {annotation.type === "NEW_ACTION"
+                    ? annotation.action.title
+                    : `${annotation.sources.length} sources found`}
                 </div>
               </button>
               <div className={`${isOpen ? "mt-1" : "hidden"}`}>
                 {isOpen && (
                   <div className="space-y-3 px-2 py-1">
-                    <div className="text-sm italic text-gray-400">
-                      <div className="mb-1 font-medium text-gray-300">
-                        Reasoning:
-                      </div>
-                      <ReactMarkdown>
-                        {annotation.action.reasoning}
-                      </ReactMarkdown>
-                    </div>
-                    {annotation.action.feedback && (
-                      <div className="border-l-2 border-blue-400 pl-3 text-sm text-blue-300">
-                        <div className="mb-1 flex items-center gap-1 font-medium text-blue-200">
-                          <LightbulbIcon className="size-4" />
-                          Feedback for next search:
+                    {annotation.type === "NEW_ACTION" ? (
+                      <>
+                        <div className="text-sm italic text-gray-400">
+                          <div className="mb-1 font-medium text-gray-300">
+                            Reasoning:
+                          </div>
+                          <ReactMarkdown>
+                            {annotation.action.reasoning}
+                          </ReactMarkdown>
                         </div>
-                        <ReactMarkdown>
-                          {annotation.action.feedback}
-                        </ReactMarkdown>
+                        {annotation.action.feedback && (
+                          <div className="border-l-2 border-blue-400 pl-3 text-sm text-blue-300">
+                            <div className="mb-1 flex items-center gap-1 font-medium text-blue-200">
+                              <LightbulbIcon className="size-4" />
+                              Feedback for next search:
+                            </div>
+                            <ReactMarkdown>
+                              {annotation.action.feedback}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {annotation.sources.map((source, sourceIndex) => (
+                          <a
+                            key={sourceIndex}
+                            href={source.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group block rounded-lg border border-gray-600 bg-gray-800 p-3 transition-colors hover:border-gray-500 hover:bg-gray-700"
+                          >
+                            <div className="flex items-start gap-3">
+                              {source.favicon && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={source.favicon}
+                                  alt=""
+                                  className="mt-0.5 size-4 flex-shrink-0 rounded"
+                                  onError={(e) => {
+                                    // Hide the image if it fails to load
+                                    (
+                                      e.target as HTMLImageElement
+                                    ).style.display = "none";
+                                  }}
+                                />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <h4 className="mb-1 text-sm font-medium text-gray-200 group-hover:text-white">
+                                  {source.title}
+                                </h4>
+                                <p
+                                  className="overflow-hidden text-ellipsis text-xs text-gray-400"
+                                  style={{
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 3,
+                                    WebkitBoxOrient: "vertical",
+                                  }}
+                                >
+                                  {source.snippet}
+                                </p>
+                                <p className="mt-1 truncate text-xs text-gray-500">
+                                  {new URL(source.url).hostname}
+                                </p>
+                              </div>
+                            </div>
+                          </a>
+                        ))}
                       </div>
                     )}
                   </div>

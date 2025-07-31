@@ -96,12 +96,22 @@ ${context.getSearchHistory()}
   return result.object;
 };
 
-export type MessageAnnotation = {
-  type: "NEW_ACTION";
-  action: {
-    type: "continue" | "answer";
-    title: string;
-    reasoning: string;
-    feedback?: string;
-  };
-};
+export type MessageAnnotation =
+  | {
+      type: "NEW_ACTION";
+      action: {
+        type: "continue" | "answer";
+        title: string;
+        reasoning: string;
+        feedback?: string;
+      };
+    }
+  | {
+      type: "SOURCES";
+      sources: Array<{
+        title: string;
+        url: string;
+        snippet: string;
+        favicon?: string;
+      }>;
+    };

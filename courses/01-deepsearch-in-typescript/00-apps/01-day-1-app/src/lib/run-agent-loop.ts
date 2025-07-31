@@ -69,6 +69,31 @@ export const runAgentLoop = async (
       });
     }
 
+    // Send annotation about the sources found
+    if (opts?.writeMessageAnnotation) {
+      // Collect all sources from all search results
+      const allSources = searchResults.flatMap(({ results }) =>
+        results.map((result) => ({
+          title: result.title,
+          url: result.link,
+          snippet: result.summary,
+          favicon: `https://www.google.com/s2/favicons?domain=${new URL(result.link).hostname}`,
+        })),
+      );
+
+      // Only write annotation if we have sources
+      if (allSources.length > 0) {
+        opts.writeMessageAnnotation({
+          type: "SOURCES",
+          // sent deduplicated sources
+          sources: allSources.filter(
+            (source, index, self) =>
+              index === self.findIndex((t) => t.url === source.url),
+          ),
+        });
+      }
+    }
+
     // Now we choose the next action based on the updated state of our system
     const nextAction = await getNextAction(ctx, opts);
 
