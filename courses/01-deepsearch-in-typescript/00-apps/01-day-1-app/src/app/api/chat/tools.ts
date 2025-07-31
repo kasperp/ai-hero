@@ -1,7 +1,5 @@
 import { z } from "zod";
-import { searchSerper } from "~/lib/serper";
-import { bulkCrawlWebsites } from "~/lib/scraper";
-import { summarizeURL } from "~/lib/summarize-url";
+import { searchTavily, formatTavilyResults } from "~/lib/tavily";
 import { env } from "~/env";
 
 export const searchWeb = {
@@ -16,58 +14,14 @@ export const searchWeb = {
     { query, num }: { query: string; num?: number },
     options: { abortSignal?: AbortSignal },
   ) => {
-    // Search for results
-    const searchResults = await searchSerper(
-      { q: query, num: num ?? 3 },
-      options.abortSignal,
-    );
+    // Search and scrape using Tavily in a single call
+    const tavilyResponse = await searchTavily({
+      query,
+      num: num ?? env.SEARCH_RESULTS_COUNT,
+    });
 
-    // Extract URLs from search results
-    const urls = searchResults.organic.map((result) => result.link);
-
-    // Scrape the URLs for detailed content
-    const scrapeResults = await bulkCrawlWebsites({ urls });
-
-    // Combine search results with scraped content and generate summaries
-    const combinedResults = await Promise.all(
-      searchResults.organic.map(async (result, index) => {
-        const scrapedContent = scrapeResults.success
-          ? scrapeResults.results[index]?.result.success
-            ? scrapeResults.results[index].result.data
-            : "Failed to scrape content"
-          : "Failed to scrape content";
-
-        // Generate summary for the scraped content
-        let summary = "Failed to generate summary";
-        if (scrapedContent !== "Failed to scrape content") {
-          try {
-            summary = await summarizeURL(
-              {
-                url: result.link,
-                title: result.title,
-                snippet: result.snippet,
-                scrapedContent,
-                query,
-                conversation: "", // Empty for tools context
-              },
-              undefined,
-            );
-          } catch (error) {
-            console.error("Failed to summarize URL:", result.link, error);
-            summary = "Failed to generate summary";
-          }
-        }
-
-        return {
-          title: result.title,
-          link: result.link,
-          snippet: result.snippet,
-          date: result.date,
-          scrapedContent,
-          summary,
-        };
-      }),
-    );
+    // Format results for compatibility with existing code
+    const combinedResults = formatTavilyResults(tavilyResponse);
 
     return combinedResults;
   },

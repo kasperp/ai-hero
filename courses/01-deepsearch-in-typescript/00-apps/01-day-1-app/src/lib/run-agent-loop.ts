@@ -1,68 +1,27 @@
 import type { streamText, StreamTextResult } from "ai";
 import type { Message } from "ai";
-import { searchSerper } from "~/lib/serper";
-import { bulkCrawlWebsites } from "~/lib/scraper";
-import { summarizeURL } from "~/lib/summarize-url";
+import { searchTavily, formatTavilyResults } from "~/lib/tavily";
 import { env } from "~/env";
 import { SystemContext } from "./system-context";
 import { getNextAction, type MessageAnnotation } from "./get-next-action";
+import { queryRewriter } from "./query-rewriter";
 import { answerQuestion } from "./answer-question";
 import type { LocationInfo } from "./location-utils";
 
-// Combined search function that automatically scrapes URLs and summarizes content
+// Combined search function using Tavily for search and scrape in one call
 const searchWeb = async (
   query: string,
   conversation: string,
   opts?: { langfuseTraceId?: string },
 ) => {
-  // Search for results
-  const searchResults = await searchSerper(
-    { q: query, num: env.SEARCH_RESULTS_COUNT }, // Reduced to 3 as requested
-    undefined,
-  );
+  // Search and scrape using Tavily in a single call
+  const tavilyResponse = await searchTavily({
+    query,
+    num: env.SEARCH_RESULTS_COUNT,
+  });
 
-  // Extract URLs from search results
-  const urls = searchResults.organic.map((result) => result.link);
-
-  // Scrape the URLs for detailed content
-  const scrapeResults = await bulkCrawlWebsites({ urls });
-
-  // Combine search results with scraped content and generate summaries
-  const combinedResults = await Promise.all(
-    searchResults.organic.map(async (result, index) => {
-      if (!scrapeResults.success) {
-        return {
-          title: result.title,
-          link: result.link,
-          snippet: result.snippet,
-          scrapedContent: "",
-          summary: "",
-        };
-      }
-      const scrapedContent = scrapeResults.results[index]?.result.data ?? "";
-
-      const summary = await summarizeURL(
-        {
-          url: result.link,
-          title: result.title,
-          snippet: result.snippet,
-          scrapedContent,
-          query,
-          conversation,
-        },
-        { langfuseTraceId: opts?.langfuseTraceId },
-      );
-
-      return {
-        title: result.title,
-        link: result.link,
-        snippet: result.snippet,
-        date: result.date,
-        scrapedContent,
-        summary,
-      };
-    }),
-  );
+  // Format results for compatibility with existing code
+  const combinedResults = formatTavilyResults(tavilyResponse);
 
   return combinedResults;
 };
@@ -81,10 +40,36 @@ export const runAgentLoop = async (
 ) => {
   const ctx = new SystemContext(messages, locationInfo);
 
-  // A loop that continues until we have an answer
-  // or we've taken 10 actions
   while (!ctx.shouldStop()) {
-    // We choose the next action based on the state of our system
+    // First, generate search queries using the query rewriter
+    const queryPlan = await queryRewriter(ctx, opts);
+
+    // Execute all queries in parallel for maximum speed
+    const searchPromises = queryPlan.queries.map(async (query) => {
+      const searchResults = await searchWeb(query, ctx.getMessages(), {
+        langfuseTraceId: opts?.langfuseTraceId,
+      });
+      return { query, results: searchResults };
+    });
+
+    const searchResults = await Promise.all(searchPromises);
+
+    // Report all search results to the context
+    for (const { query, results } of searchResults) {
+      ctx.reportSearch({
+        query,
+        results: results.map((result) => ({
+          date: result.date || "",
+          title: result.title,
+          url: result.link,
+          snippet: result.summary, // Use summary as snippet since we no longer have separate snippet
+          scrapedContent: result.scrapedContent,
+          summary: result.summary,
+        })),
+      });
+    }
+
+    // Now we choose the next action based on the updated state of our system
     const nextAction = await getNextAction(ctx, opts);
 
     // Send annotation about the chosen action
@@ -95,31 +80,14 @@ export const runAgentLoop = async (
           type: nextAction.type,
           title: nextAction.title,
           reasoning: nextAction.reasoning,
-          query: nextAction.query,
         },
       });
     }
 
     // We execute the action and update the state of our system
-    if (nextAction.type === "search" && nextAction.query) {
-      const searchResults = await searchWeb(
-        nextAction.query,
-        ctx.getMessages(),
-        {
-          langfuseTraceId: opts?.langfuseTraceId,
-        },
-      );
-      ctx.reportSearch({
-        query: nextAction.query,
-        results: searchResults.map((result) => ({
-          date: result.date || "",
-          title: result.title,
-          url: result.link,
-          snippet: result.snippet,
-          scrapedContent: result.scrapedContent,
-          summary: result.summary,
-        })),
-      });
+    if (nextAction.type === "continue") {
+      // Continue to the next iteration of the loop
+      // (we've already done the searching above)
     } else if (nextAction.type === "answer") {
       const lastMessage = messages[messages.length - 1];
       const userQuestion = lastMessage?.content || "";

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SearchIcon } from "lucide-react";
+import { SearchIcon, MessageSquareIcon } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { MessageAnnotation } from "~/lib/get-next-action";
 
@@ -36,7 +36,14 @@ export const ReasoningSteps = ({
                 >
                   {index + 1}
                 </span>
-                {annotation.action.title}
+                <div className="flex items-center gap-2">
+                  {annotation.action.type === "continue" ? (
+                    <SearchIcon className="size-4" />
+                  ) : (
+                    <MessageSquareIcon className="size-4" />
+                  )}
+                  {annotation.action.title}
+                </div>
               </button>
               <div className={`${isOpen ? "mt-1" : "hidden"}`}>
                 {isOpen && (
@@ -46,12 +53,6 @@ export const ReasoningSteps = ({
                         {annotation.action.reasoning}
                       </ReactMarkdown>
                     </div>
-                    {annotation.action.type === "search" && (
-                      <div className="mt-2 flex items-center gap-2 text-sm text-gray-400">
-                        <SearchIcon className="size-4" />
-                        <span>{annotation.action.query}</span>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
