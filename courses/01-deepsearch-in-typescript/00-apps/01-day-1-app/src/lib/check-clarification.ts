@@ -9,6 +9,7 @@ export const checkIfQuestionNeedsClarification = async (
   langfuseTraceId?: string,
 ) => {
   const messageHistory: string = ctx.getMessages();
+  const currentContext = ctx.getCurrentContext();
 
   const result = await generateObject({
     model: guardrailModel,
@@ -21,6 +22,10 @@ export const checkIfQuestionNeedsClarification = async (
     }),
     system: `You are a clarification assessment agent for a DeepSearch system. Your job is to determine whether a user's question requires clarification before conducting a comprehensive search and response.
 
+## Current Context
+
+${currentContext || "No context available"}
+
 ## Your Task
 
 Analyze the user's question and determine if it needs clarification. Respond with a JSON object in this exact format:
@@ -32,55 +37,35 @@ Analyze the user's question and determine if it needs clarification. Respond wit
 
 ## When to Request Clarification
 
-Request clarification if ANY of the following apply:
+Request clarification ONLY if the question is genuinely ambiguous and reasonable assumptions cannot be made. Be conservative - only ask for clarification when it would significantly improve the search results.
 
-### 1. Ambiguous Premise or Scope
+### 1. Truly Ambiguous References
 
-- The core question is vague or could be interpreted multiple ways
-- The scope is too broad without specific focus
-- Key terms are ambiguous or undefined
-
-**Examples:**
-
-- "What's the best approach?" (approach to what?)
-- "How do I improve it?" (improve what specifically?)
-- "Tell me about the situation" (which situation?)
-
-### 2. Unknown or Ambiguous References
-
-- Unfamiliar names of people, organizations, or entities
-- Unclear geographic references or place names
-- Ambiguous pronouns or references without context
-- Technical terms or jargon that could have multiple meanings
+- Unfamiliar names of people, organizations, or entities that could refer to multiple things
+- Unclear geographic references that could be multiple places
+- Technical terms or jargon that could have multiple meanings in the same context
 
 **Examples:**
 
-- "What's the latest on the Johnson case?" (which Johnson, what type of case?)
-- "How is the company performing?" (which company?)
-- "What happened in the incident?" (which incident?)
+- "What's the latest on the Johnson case?" (if there are multiple well-known Johnson cases)
+- "How is the company performing?" (if the conversation hasn't established which company)
+- "What happened in the incident?" (if multiple incidents have been discussed)
 
-### 3. Missing Critical Context
+### 2. Missing Critical Context That Affects Search Strategy
 
-- Time frame is unclear when it matters for accuracy
-- The user's specific use case or context would significantly affect the answer
-- Important constraints or requirements are not specified
+- Time frame is unclear when it matters for accuracy AND reasonable assumptions can't be made
+- The user's specific use case would significantly change what sources to search
+- Important constraints that would change the research approach
 
 **Examples:**
 
-- "What are the current regulations?" (in which jurisdiction, for what industry?)
-- "How much does it cost?" (what specific product/service?)
-- "What's the weather like?" (where and when?)
+- "What are the current regulations?" (if multiple jurisdictions/industries could apply)
+- "How much does it cost?" (if multiple products/services have been discussed)
 
-### 4. Contradictory or Incomplete Information
+### 3. Contradictory Information
 
-- The question contains contradictory elements
-- Essential information appears to be missing
-- The question seems to assume facts not in evidence
-
-### 5. Multiple Possible Interpretations
-
-- The question could reasonably be asking for several different types of information
-- Key terms could refer to different concepts in different contexts
+- The question contains contradictory elements that can't be resolved
+- Essential information appears to be missing AND reasonable assumptions can't be made
 
 ## When NOT to Request Clarification
 
@@ -88,9 +73,12 @@ Do NOT request clarification for:
 
 - Questions that are clear and searchable, even if broad
 - Common names or well-known entities
-- Questions where reasonable assumptions can be made
+- Questions where reasonable assumptions can be made based on context
 - Topics where a comprehensive overview would be valuable
 - Questions that are self-contained and unambiguous
+- References to recent events, current year, or common knowledge
+- Location-specific questions when user location is known
+- Time-based questions where "current" or "recent" is clear from context
 
 **Examples of questions that DON'T need clarification:**
 
@@ -98,6 +86,21 @@ Do NOT request clarification for:
 - "How does climate change affect sea levels?"
 - "What is the current state of artificial intelligence research?"
 - "What happened in the 2024 US presidential election?"
+- "What's the weather like?" (when user location is known)
+- "What are the latest developments?" (assume recent/current)
+- "How is the economy doing?" (assume current state)
+- "What are the best restaurants?" (assume user's location)
+
+## Assumptions to Make
+
+When in doubt, assume:
+
+- "Current" or "latest" refers to recent/ongoing developments
+- "Best" or "top" refers to generally recognized quality
+- Location-specific questions refer to the user's location
+- Time references without specific dates refer to recent/current time
+- Common terms refer to their most common meaning
+- The user wants comprehensive, up-to-date information
 
 ## Response Format
 
@@ -119,7 +122,8 @@ Always respond with valid JSON only. No additional text or explanation.
 - Be conservative - only request clarification when it would significantly improve the search results
 - Focus on clarifications that would change the research approach or sources
 - Prioritize the most critical missing information
-- Keep reasons specific and actionable for the user`,
+- Keep reasons specific and actionable for the user
+- Assume reasonable defaults rather than asking for clarification`,
     prompt: messageHistory,
     experimental_telemetry: langfuseTraceId
       ? {

@@ -85,6 +85,20 @@ export class SystemContext {
 `;
   }
 
+  getCurrentDateContext(): string {
+    const currentDate = new Date().toISOString().split("T")[0];
+    const currentYear = new Date().getFullYear();
+
+    return `Current Date: ${currentDate} (${currentYear})`;
+  }
+
+  getCurrentContext(): string {
+    const dateContext = this.getCurrentDateContext();
+    const locationContext = this.getLocationContext();
+
+    return `${dateContext}\n${locationContext}`.trim();
+  }
+
   reportSearch(search: SearchHistoryEntry) {
     this.searchHistory.push(search);
   }
