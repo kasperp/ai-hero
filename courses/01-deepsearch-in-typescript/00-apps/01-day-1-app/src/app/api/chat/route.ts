@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   const newChat = {
     userId,
     chatId,
-    title: "Generating...",
+    title: isNewChat ? "Generating..." : undefined,
     messages,
   };
 
@@ -160,5 +160,5 @@ const startGeneratingTitle = (isNewChat: boolean, messages: Message[]) => {
   if (isNewChat) {
     return generateChatTitle(messages);
   }
-  return Promise.resolve("");
+  return Promise.resolve(undefined);
 };
