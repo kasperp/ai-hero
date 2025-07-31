@@ -19,9 +19,9 @@ export const answerQuestion = async (
 ): Promise<StreamTextResult<{}, string>> => {
   const { isFinal = false, onFinish } = options || {};
 
-  const systemPrompt = `You are a helpful assistant that answers questions based on web search results and scraped content.
+  const systemPrompt = `You are a helpful assistant that answers questions based on web search results that include both search snippets and detailed summaries of the scraped content from the URLs.
 
-Your task is to provide a comprehensive answer to the user's question using the available information.
+Your task is to provide a comprehensive answer to the user's question using the available information from both search results and the detailed summaries of the scraped content.
 
 ${context.getLocationContext()}
 
@@ -41,13 +41,10 @@ ${context.getMessages()}
 
 Available Information:
 
-Search Results:
-${context.getQueryHistory()}
+Search Results with Summaries:
+${context.getSearchHistory()}
 
-Scraped Content:
-${context.getScrapeHistory()}
-
-Please provide a comprehensive answer to the user's question based on the available information.
+Please provide a comprehensive answer to the user's question based on the available information from both search results and the detailed summaries of the scraped content.
     `,
     experimental_transform: [
       smoothStream({

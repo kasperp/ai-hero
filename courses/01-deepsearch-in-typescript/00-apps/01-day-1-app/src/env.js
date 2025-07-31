@@ -21,7 +21,7 @@ export const env = createEnv({
     AUTH_DISCORD_SECRET: z.string(),
     SERPER_API_KEY: z.string(),
     EVAL_DATASET: z.enum(["dev", "ci", "regression"]).default("dev").optional(),
-    SEARCH_RESULTS_COUNT: z.coerce.number().default(10),
+    SEARCH_RESULTS_COUNT: z.coerce.number().default(3),
     RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(10),
     RATE_LIMIT_MAX_RETRIES: z.coerce.number().default(3),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),

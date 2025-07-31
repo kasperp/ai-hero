@@ -2,45 +2,84 @@ import type { streamText, StreamTextResult } from "ai";
 import type { Message } from "ai";
 import { searchSerper } from "~/lib/serper";
 import { bulkCrawlWebsites } from "~/lib/scraper";
+import { summarizeURL } from "~/lib/summarize-url";
 import { env } from "~/env";
 import { SystemContext } from "./system-context";
 import { getNextAction, type MessageAnnotation } from "./get-next-action";
 import { answerQuestion } from "./answer-question";
 import type { LocationInfo } from "./location-utils";
 
-// Copy of the search function from tools.ts
-const searchWeb = async (query: string) => {
-  const results = await searchSerper(
-    { q: query, num: env.SEARCH_RESULTS_COUNT },
+// Combined search function that automatically scrapes URLs and summarizes content
+const searchWeb = async (
+  query: string,
+  conversation: string,
+  opts?: { langfuseTraceId?: string },
+) => {
+  // Search for results
+  const searchResults = await searchSerper(
+    { q: query, num: env.SEARCH_RESULTS_COUNT }, // Reduced to 3 as requested
     undefined,
   );
-  return results.organic.map((result) => ({
-    title: result.title,
-    link: result.link,
-    snippet: result.snippet,
-    date: result.date,
-  }));
-};
 
-// Copy of the scrape function from tools.ts
-const scrapePages = async (urls: string[]) => {
-  return bulkCrawlWebsites({ urls });
+  // Extract URLs from search results
+  const urls = searchResults.organic.map((result) => result.link);
+
+  // Scrape the URLs for detailed content
+  const scrapeResults = await bulkCrawlWebsites({ urls });
+
+  // Combine search results with scraped content and generate summaries
+  const combinedResults = await Promise.all(
+    searchResults.organic.map(async (result, index) => {
+      if (!scrapeResults.success) {
+        return {
+          title: result.title,
+          link: result.link,
+          snippet: result.snippet,
+          scrapedContent: "",
+          summary: "",
+        };
+      }
+      const scrapedContent = scrapeResults.results[index]?.result.data ?? "";
+
+      const summary = await summarizeURL(
+        {
+          url: result.link,
+          title: result.title,
+          snippet: result.snippet,
+          scrapedContent,
+          query,
+          conversation,
+        },
+        { langfuseTraceId: opts?.langfuseTraceId },
+      );
+
+      return {
+        title: result.title,
+        link: result.link,
+        snippet: result.snippet,
+        date: result.date,
+        scrapedContent,
+        summary,
+      };
+    }),
+  );
+
+  return combinedResults;
 };
 
 interface RunAgentLoopOptions {
   langfuseTraceId?: string;
   locationInfo?: LocationInfo;
+  onFinish?: Parameters<typeof streamText>[0]["onFinish"];
+  writeMessageAnnotation?: (annotation: MessageAnnotation) => void;
 }
 
 export const runAgentLoop = async (
   messages: Message[],
-  writeMessageAnnotation?: (annotation: MessageAnnotation) => void,
-  opts?: RunAgentLoopOptions & {
-    onFinish: Parameters<typeof streamText>[0]["onFinish"];
-  },
-): Promise<StreamTextResult<{}, string>> => {
-  // A persistent container for the state of our system
-  const ctx = new SystemContext(messages, opts?.locationInfo);
+  locationInfo?: LocationInfo,
+  opts?: RunAgentLoopOptions,
+) => {
+  const ctx = new SystemContext(messages, locationInfo);
 
   // A loop that continues until we have an answer
   // or we've taken 10 actions
@@ -49,43 +88,38 @@ export const runAgentLoop = async (
     const nextAction = await getNextAction(ctx, opts);
 
     // Send annotation about the chosen action
-    if (writeMessageAnnotation) {
-      writeMessageAnnotation({
+    if (opts?.writeMessageAnnotation) {
+      opts.writeMessageAnnotation({
         type: "NEW_ACTION",
         action: {
           type: nextAction.type,
           title: nextAction.title,
           reasoning: nextAction.reasoning,
           query: nextAction.query,
-          urls: nextAction.urls,
         },
       });
     }
 
     // We execute the action and update the state of our system
     if (nextAction.type === "search" && nextAction.query) {
-      const searchResults = await searchWeb(nextAction.query);
-      ctx.reportQueries([
+      const searchResults = await searchWeb(
+        nextAction.query,
+        ctx.getMessages(),
         {
-          query: nextAction.query,
-          results: searchResults.map((result) => ({
-            date: result.date || "",
-            title: result.title,
-            url: result.link,
-            snippet: result.snippet,
-          })),
+          langfuseTraceId: opts?.langfuseTraceId,
         },
-      ]);
-    } else if (nextAction.type === "scrape" && nextAction.urls) {
-      const scrapeResults = await scrapePages(nextAction.urls);
-      if (scrapeResults.success) {
-        ctx.reportScrapes(
-          scrapeResults.results.map((result) => ({
-            url: result.url,
-            result: result.result.data,
-          })),
-        );
-      }
+      );
+      ctx.reportSearch({
+        query: nextAction.query,
+        results: searchResults.map((result) => ({
+          date: result.date || "",
+          title: result.title,
+          url: result.link,
+          snippet: result.snippet,
+          scrapedContent: result.scrapedContent,
+          summary: result.summary,
+        })),
+      });
     } else if (nextAction.type === "answer") {
       const lastMessage = messages[messages.length - 1];
       const userQuestion = lastMessage?.content || "";

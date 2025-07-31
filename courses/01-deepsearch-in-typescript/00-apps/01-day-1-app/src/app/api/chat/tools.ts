@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { searchSerper } from "~/lib/serper";
 import { bulkCrawlWebsites } from "~/lib/scraper";
+import { summarizeURL } from "~/lib/summarize-url";
 import { env } from "~/env";
 
 export const searchWeb = {
@@ -9,36 +10,65 @@ export const searchWeb = {
     num: z
       .number()
       .describe("The number of search results to return")
-      .default(env.SEARCH_RESULTS_COUNT),
+      .default(10),
   }),
   execute: async (
     { query, num }: { query: string; num?: number },
     options: { abortSignal?: AbortSignal },
   ) => {
-    const results = await searchSerper(
-      { q: query, num: num ?? env.SEARCH_RESULTS_COUNT },
+    // Search for results
+    const searchResults = await searchSerper(
+      { q: query, num: num ?? 3 },
       options.abortSignal,
     );
-    return results.organic.map((result) => ({
-      title: result.title,
-      link: result.link,
-      snippet: result.snippet,
-      date: result.date,
-    }));
-  },
-};
 
-export const scrapePages = {
-  parameters: z.object({
-    urls: z
-      .array(z.string())
-      .describe("A list of URLs to scrape for full page content."),
-  }),
-  execute: async (
-    { urls }: { urls: string[] },
-    _options: { abortSignal?: AbortSignal },
-  ) => {
-    const result = await bulkCrawlWebsites({ urls });
-    return result;
+    // Extract URLs from search results
+    const urls = searchResults.organic.map((result) => result.link);
+
+    // Scrape the URLs for detailed content
+    const scrapeResults = await bulkCrawlWebsites({ urls });
+
+    // Combine search results with scraped content and generate summaries
+    const combinedResults = await Promise.all(
+      searchResults.organic.map(async (result, index) => {
+        const scrapedContent = scrapeResults.success
+          ? scrapeResults.results[index]?.result.success
+            ? scrapeResults.results[index].result.data
+            : "Failed to scrape content"
+          : "Failed to scrape content";
+
+        // Generate summary for the scraped content
+        let summary = "Failed to generate summary";
+        if (scrapedContent !== "Failed to scrape content") {
+          try {
+            summary = await summarizeURL(
+              {
+                url: result.link,
+                title: result.title,
+                snippet: result.snippet,
+                scrapedContent,
+                query,
+                conversation: "", // Empty for tools context
+              },
+              undefined,
+            );
+          } catch (error) {
+            console.error("Failed to summarize URL:", result.link, error);
+            summary = "Failed to generate summary";
+          }
+        }
+
+        return {
+          title: result.title,
+          link: result.link,
+          snippet: result.snippet,
+          date: result.date,
+          scrapedContent,
+          summary,
+        };
+      }),
+    );
+
+    return combinedResults;
   },
 };

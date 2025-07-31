@@ -44,10 +44,10 @@ export const streamFromDeepSearch = async (opts: {
   const langfuseTraceId = opts.langfuseTraceId;
 
   // Run the agent loop and return the result
-  return runAgentLoop(opts.messages, opts.writeMessageAnnotation, {
+  return runAgentLoop(opts.messages, opts.locationInfo, {
     langfuseTraceId,
-    locationInfo: opts.locationInfo,
     onFinish: opts.onFinish,
+    writeMessageAnnotation: opts.writeMessageAnnotation,
   });
 };
 
