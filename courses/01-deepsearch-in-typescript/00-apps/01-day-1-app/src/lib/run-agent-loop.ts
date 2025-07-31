@@ -72,6 +72,9 @@ export const runAgentLoop = async (
     // Now we choose the next action based on the updated state of our system
     const nextAction = await getNextAction(ctx, opts);
 
+    // Store the feedback in the system context
+    ctx.setLastFeedback(nextAction.feedback ?? "");
+
     // Send annotation about the chosen action
     if (opts?.writeMessageAnnotation) {
       opts.writeMessageAnnotation({
@@ -80,6 +83,7 @@ export const runAgentLoop = async (
           type: nextAction.type,
           title: nextAction.title,
           reasoning: nextAction.reasoning,
+          feedback: nextAction.feedback,
         },
       });
     }

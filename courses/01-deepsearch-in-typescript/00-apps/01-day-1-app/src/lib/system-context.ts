@@ -35,6 +35,11 @@ export class SystemContext {
    */
   private locationInfo?: LocationInfo;
 
+  /**
+   * The most recent feedback from getNextAction
+   */
+  private lastFeedback?: string;
+
   constructor(messages: Message[], locationInfo?: LocationInfo) {
     this.messages = messages;
     this.locationInfo = locationInfo;
@@ -70,6 +75,14 @@ export class SystemContext {
 
   reportSearch(search: SearchHistoryEntry) {
     this.searchHistory.push(search);
+  }
+
+  setLastFeedback(feedback: string) {
+    this.lastFeedback = feedback;
+  }
+
+  getLastFeedback(): string {
+    return this.lastFeedback || "";
   }
 
   getSearchHistory(): string {

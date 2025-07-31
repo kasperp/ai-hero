@@ -58,17 +58,30 @@ Finally, translate this plan into a numbered list of 3-5 sequential search queri
 
 Remember that initial queries can be exploratory - they help establish baseline information or verify assumptions before proceeding to more targeted searches. Each query should serve a specific purpose in your overall research plan.
 
+<location-context>
 ${context.getLocationContext()}
+</location-context>
 `,
     prompt: `
-    Message history:
+<message-history>
 ${context.getMessages()}
+</message-history>
 
 Based on the context and the user's question, create a research plan and generate search queries.
 
-Here is the current search history:
-
+<search-history>
 ${context.getSearchHistory()}
+</search-history>
+
+${
+  context.getLastFeedback()
+    ? `<feedback>
+${context.getLastFeedback()}
+
+Use this feedback to guide your search queries and focus on the specific gaps identified.
+</feedback>`
+    : ""
+}
 
 Create a detailed plan and generate 3-5 search queries that will help answer the question.
     `,
