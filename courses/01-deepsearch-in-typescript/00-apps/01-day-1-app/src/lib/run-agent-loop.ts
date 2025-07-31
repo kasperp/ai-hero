@@ -1,4 +1,5 @@
-import type { streamText, StreamTextResult } from "ai";
+import { streamText } from "ai";
+import type { StreamTextResult } from "ai";
 import type { Message } from "ai";
 import { searchTavily, formatTavilyResults } from "~/lib/tavily";
 import { env } from "~/env";
@@ -6,6 +7,8 @@ import { SystemContext } from "./system-context";
 import { getNextAction, type MessageAnnotation } from "./get-next-action";
 import { queryRewriter } from "./query-rewriter";
 import { answerQuestion } from "./answer-question";
+import { checkIsSafe } from "./safety-check";
+import { guardrailModel } from "~/app/api/chat/model";
 import type { LocationInfo } from "./location-utils";
 
 // Combined search function using Tavily for search and scrape in one call
@@ -39,6 +42,34 @@ export const runAgentLoop = async (
   opts?: RunAgentLoopOptions,
 ) => {
   const ctx = new SystemContext(messages, locationInfo);
+
+  // Safety check - must pass before any processing
+  const safetyResult = await checkIsSafe(ctx, opts?.langfuseTraceId);
+
+  if (safetyResult.classification === "refuse") {
+    // Return a refusal message instead of processing
+    const refusalMessage = safetyResult.reason
+      ? `I cannot answer this question. ${safetyResult.reason}`
+      : "I cannot answer this question as it violates our safety guidelines.";
+
+    // Create a simple stream result that immediately returns the refusal message
+    return streamText({
+      model: guardrailModel, // Use the same model for consistency
+      system:
+        "You are a safety guardrail that refuses to answer unsafe questions.",
+      prompt: refusalMessage,
+      experimental_telemetry: opts?.langfuseTraceId
+        ? {
+            isEnabled: true,
+            functionId: "safety-refusal",
+            metadata: {
+              langfuseTraceId: opts.langfuseTraceId,
+            },
+          }
+        : undefined,
+      onFinish: opts?.onFinish,
+    });
+  }
 
   while (!ctx.shouldStop()) {
     // First, generate search queries using the query rewriter
